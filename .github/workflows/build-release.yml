@@ -26,7 +26,7 @@ jobs:
     - name: Upload Build Artifact
       uses: actions/upload-artifact@v2.2.2
       with:
-        path: target\\release
+        path: target\\release\\*.exe
         if-no-files-found: error
 
   release:
@@ -44,4 +44,4 @@ jobs:
         prerelease: true
         title: "Development build"
         files: |
-          ${{steps.download.outputs.download-path}}/*.exe
+          ${{steps.download.outputs.download-path}}/artifact/*.exe
