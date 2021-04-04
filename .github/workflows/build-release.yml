@@ -34,9 +34,11 @@ jobs:
     - name: Download Build Artifact
       uses: actions/download-artifact@v2.0.8
     - name: Publish executable
-      uses: skx/github-action-publish-binaries@release-0.15
-      env:
-        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      uses: "marvinpinto/action-automatic-releases@latest"
       with:
-        releaseId: ${{ github.event_name }}
-        args: '*.exe'
+        repo_token: "${{ secrets.GITHUB_TOKEN }}"
+        automatic_release_tag: "latest"
+        prerelease: true
+        title: "Development build"
+        files: |
+          pc.exe
