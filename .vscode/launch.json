@@ -11,6 +11,14 @@
             "program": "${workspaceFolder}/target/debug/pc",
             "args": [],
             "cwd": "${workspaceFolder}"
+        },
+        {
+            "name": "(Windows) Launch",
+            "type": "lldb",
+            "request": "launch",
+            "program": "${workspaceFolder}\\target\\debug\\pc.exe",
+            "args": [],
+            "cwd": "${workspaceFolder}"
         }
     ]
 }

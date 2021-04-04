@@ -12,8 +12,11 @@ use crossterm::{
     terminal::{
         EnterAlternateScreen, LeaveAlternateScreen, enable_raw_mode, disable_raw_mode
     },
-    event::{self, DisableMouseCapture, Event as CEvent, KeyCode},
+    event::{self, Event as CEvent, KeyCode},
 };
+
+#[cfg(not(target_family = "windows"))]
+use crossterm::event::DisableMouseCapture;
 
 mod app;
 
@@ -87,10 +90,21 @@ fn main() -> Result<(), Box<dyn Error>> {
             }
         }
     }
+    cleanup(&mut terminal)?;
+    Ok(())
+}
 
-    // Cleanup
+#[cfg(target_family = "unix")]
+fn cleanup(terminal: &mut Terminal<CrosstermBackend<std::io::Stdout>>) -> Result<(), Box<dyn Error>> {
     disable_raw_mode()?;
     execute!(terminal.backend_mut(), LeaveAlternateScreen, DisableMouseCapture)?;
     terminal.show_cursor()?;
-    return Ok(())
+    Ok(())
+}
+
+#[cfg(target_family = "windows")]
+fn cleanup(terminal: &mut Terminal<CrosstermBackend<std::io::Stdout>>) -> Result<(), Box<dyn Error>> {
+    disable_raw_mode()?;
+    execute!(terminal.backend_mut(), LeaveAlternateScreen)?;
+    Ok(())
 }
