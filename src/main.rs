@@ -38,6 +38,7 @@ Navigation keys:
     Q|ESC                   Quit the application
     Backspace|Left arrow    Move up a directory
     Enter|Right arrow       Move into selected directory
+    Up|Down                 Movce within a directory
 */
 #[derive(Debug, FromArgs)]
 struct Cli {
@@ -87,8 +88,12 @@ fn main() -> Result<(), Box<dyn Error>> {
     let mut app = app::App::new(cli.path);
     let mut current_directory = ui::Folder::new(app.list_folder());
     current_directory.set_items(app.list_folder());
+    current_directory.select(0);
+
     let mut parent_directory = ui::Folder::new(app.list_parent());
     parent_directory.set_items(app.list_parent());
+    parent_directory.select(app.current_folder_parent_idx());
+
     loop {
         terminal.draw(|f| ui::draw(f, &mut app, &mut current_directory.state, &mut parent_directory.state))?;
         match rx.recv()? {
@@ -97,8 +102,20 @@ fn main() -> Result<(), Box<dyn Error>> {
                 KeyCode::Down => { current_directory.next() }
                 KeyCode::Up => { current_directory.previous() }
                 KeyCode::Left | KeyCode::Backspace => { 
-                    app.up();
-                    current_directory.set_items(app.list_folder());
+                    if let Some(idx) = parent_directory.state.selected() {
+                        app.up();
+                        current_directory.set_items(app.list_folder());
+                        current_directory.select(idx);
+                        parent_directory.set_items(app.list_parent());
+                        parent_directory.select(app.current_folder_parent_idx());
+                    }
+                }
+                KeyCode::Right | KeyCode::Enter => {
+                    if let Some(idx) = current_directory.state.selected() {
+                        parent_directory.set_items(app.down(idx));
+                        parent_directory.select(idx);
+                        current_directory.set_items(app.list_folder());
+                    }
                 }
                 _ => {}
             },

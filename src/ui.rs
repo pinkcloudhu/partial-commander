@@ -1,10 +1,10 @@
 use tui::{
     backend::Backend,
     Frame,
-    widgets::{Block, Borders, Paragraph, List, ListItem, ListState},
+    widgets::{Block, Borders, List, ListItem, ListState},
     layout::{Layout, Constraint, Direction, Margin},
-    text::{Span, Spans},
-    style::{Color, Style, Modifier},
+    text::{Span},
+    style::{Color, Style},
 };
 use crate::app::App;
 
@@ -43,7 +43,7 @@ pub fn draw<B: Backend>(f: &mut Frame<B>, app: &mut App, current_directory_state
     let items: Vec<ListItem> = folder_contents.iter().map(|f| ListItem::new(f.as_str())).collect();
     let list = List::new(items)
         .style(Style::default().fg(Color::Gray))
-        .highlight_style(Style::default().fg(Color::White).bg(Color::Blue))
+        .highlight_style(Style::default().fg(Color::White).bg(Color::DarkGray))
         .highlight_symbol("> ");
     f.render_stateful_widget(list, parent_block, parent_directory_state);
 
@@ -64,12 +64,20 @@ pub fn draw<B: Backend>(f: &mut Frame<B>, app: &mut App, current_directory_state
         .highlight_symbol("> ");
     f.render_stateful_widget(list, current_block, current_directory_state);
 
+    // child item/dir
     let block = Block::default()
-        .title(
-            Span::styled("Working example!", Style::default().fg(Color::LightRed).add_modifier(Modifier::ITALIC))
-        )
         .borders(Borders::ALL);
     f.render_widget(block, chunks[2]);
+
+    if let Some(idx) = current_directory_state.selected() {
+        if app.child_is_folder(idx) {
+            let children = app.list_child(idx);
+            let items: Vec<ListItem> = children.iter().map(|f| ListItem::new(f.as_str())).collect();
+            let list = List::new(items)
+                .style(Style::default().fg(Color::Gray));
+            f.render_widget(list, contents_block);
+        }
+    }
 }
 
 pub struct Folder {
@@ -124,5 +132,13 @@ impl Folder {
     // sure that the stored offset is also reset.
     pub fn unselect(&mut self) {
         self.state.select(None);
+    }
+
+    pub fn select(&mut self, idx: usize) {
+        let i = if idx >= self.items.len() {
+            self.items.len()
+        } else if idx <= 0 { 0 } else { idx };
+
+        self.state.select(Some(i));
     }
 }
