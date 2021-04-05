@@ -23,11 +23,11 @@ use crossterm::event::DisableMouseCapture;
 
 mod app;
 mod ui;
+mod cwd;
 
 // Events sent by the input handling thread
 enum Event<I> {
     Input(I),
-    Tick,
 }
 
 /**
@@ -42,12 +42,18 @@ Navigation keys:
 */
 #[derive(Debug, FromArgs)]
 struct Cli {
-    /// time in ms between ticks
-    #[argh(option, default = "250", short = 't')]
-    tick_rate: u64,
     /// path to start in
     #[argh(positional)]
     path: Option<String>,
+    /// time in ms between ticks for input handling
+    #[argh(option, default = "250", short = 't')]
+    tick_rate: u64,
+    /// upon exiting, pass last directory to shell
+    #[argh(switch, short = 'k')]
+    keep: bool,
+    /// display directories only
+    #[argh(switch, short = 'd')]
+    dirs: bool,
 }
 
 fn main() -> Result<(), Box<dyn Error>> {
@@ -63,20 +69,23 @@ fn main() -> Result<(), Box<dyn Error>> {
 
     // Setup input handling thread
     let (tx, rx) = mpsc::channel();
+    let (tx_stop_thread, rx_stop_thread) = mpsc::channel();
     let tick_rate = Duration::from_millis(cli.tick_rate);
-    thread::spawn(move || {
+    let input_thread_handle = thread::spawn(move || {
         let mut last_tick = Instant::now();
         loop {
             let timeout = tick_rate
-                .checked_sub(last_tick.elapsed())
-                .unwrap_or_else(|| Duration::from_secs(0));
+            .checked_sub(last_tick.elapsed())
+            .unwrap_or_else(|| Duration::from_secs(0));
+            if let Ok(_) = rx_stop_thread.recv_timeout(Duration::from_millis(1)) { return; }
             if event::poll(timeout).unwrap() {
                 if let CEvent::Key(key) = event::read().unwrap() {
-                    tx.send(Event::Input(key)).unwrap();
+                    if let Err(_) = tx.send(Event::Input(key)) {
+                        return;
+                    }
                 }
             }
             if last_tick.elapsed() >= tick_rate {
-                tx.send(Event::Tick).unwrap();
                 last_tick = Instant::now();
             }
         }
@@ -122,13 +131,15 @@ fn main() -> Result<(), Box<dyn Error>> {
                     }
                 }
                 _ => {}
-            },
-            Event::Tick => {
-                // TODO: pass to app, possibly redraw also
             }
         }
     }
     cleanup(&mut terminal)?;
+    tx_stop_thread.send(())?;
+    input_thread_handle.join().unwrap_or(());
+    if cli.keep {
+        crate::cwd::cwd_host(app.current_path())?;
+    }
     Ok(())
 }
 

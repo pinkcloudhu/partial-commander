@@ -171,4 +171,8 @@ impl App {
         self.history = vec!();
         None
     }
+
+    pub fn current_path(&self) -> &Path {
+        return self.cwd.as_path();
+    }
 }
