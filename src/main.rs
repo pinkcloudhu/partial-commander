@@ -1,6 +1,6 @@
 use std::{
     sync::mpsc,
-    io::{stdout},
+    io::stderr,
     time::{Duration, Instant},
     thread,
     error::Error,
@@ -8,7 +8,7 @@ use std::{
 use argh::FromArgs;
 use tui::{
     Terminal, 
-    backend::CrosstermBackend
+    backend::{CrosstermBackend, Backend},
 };
 use crossterm::{
     execute, 
@@ -61,10 +61,10 @@ fn main() -> Result<(), Box<dyn Error>> {
 
     // Setup terminal gui stuff
     enable_raw_mode()?;
-    let mut stdout = stdout();
-    execute!(stdout, EnterAlternateScreen)?;
+    let mut stderr = stderr();
+    execute!(stderr, EnterAlternateScreen)?;
 
-    let backend = CrosstermBackend::new(stdout);
+    let backend = CrosstermBackend::new(stderr);
     let mut terminal = Terminal::new(backend)?;
 
     // Setup input handling thread
@@ -144,7 +144,7 @@ fn main() -> Result<(), Box<dyn Error>> {
 }
 
 #[cfg(target_family = "unix")]
-fn cleanup(terminal: &mut Terminal<CrosstermBackend<std::io::Stdout>>) -> Result<(), Box<dyn Error>> {
+fn cleanup<B: Backend + std::io::Write>(terminal: &mut Terminal<B>) -> Result<(), Box<dyn Error>> {
     disable_raw_mode()?;
     execute!(terminal.backend_mut(), LeaveAlternateScreen, DisableMouseCapture)?;
     terminal.show_cursor()?;
@@ -152,7 +152,7 @@ fn cleanup(terminal: &mut Terminal<CrosstermBackend<std::io::Stdout>>) -> Result
 }
 
 #[cfg(target_family = "windows")]
-fn cleanup(terminal: &mut Terminal<CrosstermBackend<std::io::Stdout>>) -> Result<(), Box<dyn Error>> {
+fn cleanup<B: Backend + std::io::Write>(terminal: &mut Terminal<B>) -> Result<(), Box<dyn Error>> {
     disable_raw_mode()?;
     execute!(terminal.backend_mut(), LeaveAlternateScreen)?;
     Ok(())

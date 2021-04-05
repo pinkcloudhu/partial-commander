@@ -58,16 +58,19 @@ fn send_str(s: &str) -> Result<(), Error> {
     Ok(())
 }
 
-#[cfg(not(windows))]
-fn send_str(_s: &str) -> Result<(), Error> {
-    println!("--keep flag not yet implemented on *nix");
-    Ok(()) // TODO: make it work
-}
-
+#[cfg(windows)]
 pub fn cwd_host(path: &Path) -> Result<(), Error> {
     if let Some(s) = path.to_str() {
         let command = format!("pushd {}", s);
         send_str(command.as_str())?;
+    }
+    Ok(())
+}
+
+#[cfg(not(windows))]
+pub fn cwd_host(path: &Path) -> Result<(), Error> {
+    if let Some(s) = path.to_str() {
+        println!("{}", s);
     }
     Ok(())
 }
