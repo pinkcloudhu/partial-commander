@@ -71,11 +71,12 @@ pub fn draw<B: Backend>(f: &mut Frame<B>, app: &mut App, current_directory_state
 
     if let Some(idx) = current_directory_state.selected() {
         if app.child_is_folder(idx) {
-            let folder_contents = app.list_child(idx);
-            let items: Vec<ListItem> = folder_contents.iter().map(|f| ListItem::new(f.as_str())).collect();
-            let list = List::new(items)
+            if let Ok(folder_contents) = app.list_child(idx) {
+                let items: Vec<ListItem> = folder_contents.iter().map(|f| ListItem::new(f.as_str())).collect();
+                let list = List::new(items)
                 .style(Style::default().fg(Color::Gray));
-            f.render_widget(list, contents_block);
+                f.render_widget(list, contents_block);
+            }
         }
     }
 }

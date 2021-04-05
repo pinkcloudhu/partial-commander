@@ -94,7 +94,7 @@ fn main() -> Result<(), Box<dyn Error>> {
 
     terminal.clear()?;
 
-    let mut app = app::App::new(cli.path);
+    let mut app = app::App::new(cli.path, cli.dirs);
     let mut current_directory = ui::Folder::new(app.list_folder());
     current_directory.set_items(app.list_folder());
     current_directory.select(Some(0));
@@ -120,13 +120,15 @@ fn main() -> Result<(), Box<dyn Error>> {
                 }
                 KeyCode::Right | KeyCode::Enter => {
                     if let Some(idx) = current_directory.state.selected() {
-                        parent_directory.set_items(app.down(idx));
-                        parent_directory.select(Some(idx));
-                        current_directory.set_items(app.list_folder());
-                        if let Some(idx) = app.pop_last_visited_idx() {
-                            current_directory.select(Some(idx));
-                        } else {
-                            current_directory.select(Some(0));
+                        if let Ok(items) = app.down(idx) {
+                            parent_directory.set_items(items);
+                            parent_directory.select(Some(idx));
+                            current_directory.set_items(app.list_folder());
+                            if let Some(idx) = app.pop_last_visited_idx() {
+                                current_directory.select(Some(idx));
+                            } else {
+                                current_directory.select(Some(0));
+                            }
                         }
                     }
                 }
