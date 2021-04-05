@@ -71,8 +71,8 @@ pub fn draw<B: Backend>(f: &mut Frame<B>, app: &mut App, current_directory_state
 
     if let Some(idx) = current_directory_state.selected() {
         if app.child_is_folder(idx) {
-            let children = app.list_child(idx);
-            let items: Vec<ListItem> = children.iter().map(|f| ListItem::new(f.as_str())).collect();
+            let folder_contents = app.list_child(idx);
+            let items: Vec<ListItem> = folder_contents.iter().map(|f| ListItem::new(f.as_str())).collect();
             let list = List::new(items)
                 .style(Style::default().fg(Color::Gray));
             f.render_widget(list, contents_block);
@@ -96,8 +96,6 @@ impl Folder {
         self.state = ListState::default();
     }
 
-    // Select the next item. This will not be reflected until the widget is drawn in the
-    // `Terminal::draw` callback using `Frame::render_stateful_widget`.
     pub fn next(&mut self) {
         let i = match self.state.selected() {
             Some(i) => {
@@ -112,8 +110,6 @@ impl Folder {
         self.state.select(Some(i));
     }
 
-    // Select the previous item. This will not be reflected until the widget is drawn in the
-    // `Terminal::draw` callback using `Frame::render_stateful_widget`.
     pub fn previous(&mut self) {
         let i = match self.state.selected() {
             Some(i) => {
@@ -128,17 +124,18 @@ impl Folder {
         self.state.select(Some(i));
     }
 
-    // Unselect the currently selected item if any. The implementation of `ListState` makes
-    // sure that the stored offset is also reset.
     pub fn unselect(&mut self) {
         self.state.select(None);
     }
 
-    pub fn select(&mut self, idx: usize) {
-        let i = if idx >= self.items.len() {
-            self.items.len()
-        } else if idx <= 0 { 0 } else { idx };
-
-        self.state.select(Some(i));
+    pub fn select(&mut self, idx: Option<usize>) {
+        if let Some(idx) = idx {
+            let i = if idx >= self.items.len() {
+                self.items.len()
+            } else if idx <= 0 { 0 } else { idx };
+            self.state.select(Some(i));
+        } else {
+            self.unselect();
+        }
     }
 }

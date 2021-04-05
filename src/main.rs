@@ -88,7 +88,7 @@ fn main() -> Result<(), Box<dyn Error>> {
     let mut app = app::App::new(cli.path);
     let mut current_directory = ui::Folder::new(app.list_folder());
     current_directory.set_items(app.list_folder());
-    current_directory.select(0);
+    current_directory.select(Some(0));
 
     let mut parent_directory = ui::Folder::new(app.list_parent());
     parent_directory.set_items(app.list_parent());
@@ -102,19 +102,22 @@ fn main() -> Result<(), Box<dyn Error>> {
                 KeyCode::Down => { current_directory.next() }
                 KeyCode::Up => { current_directory.previous() }
                 KeyCode::Left | KeyCode::Backspace => { 
-                    if let Some(idx) = parent_directory.state.selected() {
-                        app.up();
-                        current_directory.set_items(app.list_folder());
-                        current_directory.select(idx);
-                        parent_directory.set_items(app.list_parent());
-                        parent_directory.select(app.current_folder_parent_idx());
-                    }
+                    app.up(current_directory.state.selected());
+                    current_directory.set_items(app.list_folder());
+                    current_directory.select(parent_directory.state.selected());
+                    parent_directory.set_items(app.list_parent());
+                    parent_directory.select(app.current_folder_parent_idx());
                 }
                 KeyCode::Right | KeyCode::Enter => {
                     if let Some(idx) = current_directory.state.selected() {
                         parent_directory.set_items(app.down(idx));
-                        parent_directory.select(idx);
+                        parent_directory.select(Some(idx));
                         current_directory.set_items(app.list_folder());
+                        if let Some(idx) = app.pop_last_visited_idx() {
+                            current_directory.select(Some(idx));
+                        } else {
+                            current_directory.select(Some(0));
+                        }
                     }
                 }
                 _ => {}

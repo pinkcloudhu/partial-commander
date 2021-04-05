@@ -5,6 +5,7 @@ use std::{
 
 pub struct App {
     cwd: PathBuf,
+    history: Vec<PathBuf>,
 }
 impl App {
     pub fn new(path: Option<String>) -> Self {
@@ -17,24 +18,29 @@ impl App {
         } else {
             current_dir().unwrap()
         };
-        App { cwd: path }
+        App {
+            cwd: path,
+            history: vec![],
+        }
     }
 
     fn list_folder_inner(&self, path: &Path) -> Vec<String> {
         let mut result = Vec::new();
         for path in path.read_dir() {
             for item in path {
-                if let Ok(i) = item {
-                    if let Ok(m) = i.metadata() {
-                        if m.is_dir() { // if is a dir, add slashes on the end
-                            if let Some(s) = i.path().to_str() {
+                if let Ok(item) = item {
+                    if let Ok(m) = item.metadata() {
+                        if m.is_dir() {
+                            // if is a dir, add slashes on the end
+                            if let Some(s) = item.path().to_str() {
                                 let s = s.split('/').collect::<Vec<&str>>();
                                 result.push(String::from(s[s.len() - 1]) + &String::from("/"));
                             } else {
                                 result.push(String::from("???/"));
                             }
-                        } else { // is a file
-                            if let Some(s) = i.path().to_str() {
+                        } else {
+                            // is a file
+                            if let Some(s) = item.path().to_str() {
                                 let s = s.split('/').collect::<Vec<&str>>();
                                 result.push(String::from(s[s.len() - 1]));
                             } else {
@@ -84,19 +90,26 @@ impl App {
         }
     }
 
-    pub fn current_folder_parent_idx(&self) -> usize {
+    pub fn current_folder_parent_idx(&self) -> Option<usize> {
         let parent = self.list_parent();
         let curr = self.current_folder() + &String::from("/");
         for (i, item) in parent.iter().enumerate() {
             if item == &curr {
-                return i;
+                return Some(i);
             }
         }
-        0
+        None
     }
 
-    pub fn up(&mut self) {
+    pub fn up(&mut self, selected_idx: Option<usize>) {
         if let Some(parent) = self.cwd.parent() {
+            if let Some(idx) = selected_idx {
+                if let Ok(mut items) = self.cwd.read_dir() {
+                    if let Some(Ok(item)) = items.nth(idx) {
+                        self.history.push(item.path());
+                    }
+                }
+            }
             self.cwd = parent.to_path_buf();
         }
     }
@@ -129,15 +142,31 @@ impl App {
     }
 
     pub fn down(&mut self, idx: usize) -> Vec<String> {
-        let old_folder = self.list_folder();
+        let parent = self.list_folder();
 
         if let Ok(mut read_dir) = self.cwd.as_path().read_dir() {
             if let Some(dir) = read_dir.nth(idx) {
-                if let Ok(entry) = dir {
-                    self.cwd = entry.path();
+                if let Ok(item) = dir {
+                    self.cwd = item.path();
                 }
             }
         }
-        old_folder
+        parent
+    }
+
+    pub fn pop_last_visited_idx(&mut self) -> Option<usize> {
+        if let Some(last_item) = self.history.pop() {
+            if let Ok(dir) = self.cwd.as_path().read_dir() {
+                for (i, item) in dir.enumerate() {
+                    if let Ok(item) = item {
+                        if item.path() == last_item {
+                            return Some(i);
+                        }
+                    }
+                }
+            }
+        }
+        self.history = vec!();
+        None
     }
 }
