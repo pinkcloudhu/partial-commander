@@ -3,6 +3,13 @@ use std::{
     path::{Path, PathBuf},
 };
 
+#[cfg(target_family = "unix")]
+pub const PATH_SEAPARATOR: &str = "/";
+
+#[cfg(target_family = "windows")]
+pub const PATH_SEAPARATOR: &str = "\\";
+
+
 pub struct App {
     cwd: PathBuf,
     history: Vec<PathBuf>,
@@ -24,32 +31,28 @@ impl App {
         }
     }
 
+    fn strip_path_string(&self, s: &str, is_dir: bool) -> String {
+        let s = s.split(PATH_SEAPARATOR).collect::<Vec<&str>>();
+        let result = String::from(s[s.len() - 1]);
+        if is_dir {
+            String::from(result + PATH_SEAPARATOR)
+        } else { result }
+    }
+
     fn list_folder_inner(&self, path: &Path) -> Vec<String> {
         let mut result = Vec::new();
         for path in path.read_dir() {
             for item in path {
                 if let Ok(item) = item {
                     if let Ok(m) = item.metadata() {
-                        if m.is_dir() {
-                            // if is a dir, add slashes on the end
-                            if let Some(s) = item.path().to_str() {
-                                let s = s.split('/').collect::<Vec<&str>>();
-                                result.push(String::from(s[s.len() - 1]) + &String::from("/"));
-                            } else {
-                                result.push(String::from("???/"));
-                            }
+                        if let Some(s) = item.path().to_str() {
+                                result.push(self.strip_path_string(s, m.is_dir()));
                         } else {
-                            // is a file
-                            if let Some(s) = item.path().to_str() {
-                                let s = s.split('/').collect::<Vec<&str>>();
-                                result.push(String::from(s[s.len() - 1]));
-                            } else {
-                                result.push(String::from("???"));
-                            }
+                            result.push(String::from("??? unknown"));
                         }
                     }
                 } else {
-                    result.push(String::from("???"));
+                    result.push(String::from("??? unknown"));
                 }
             }
         }
@@ -70,8 +73,7 @@ impl App {
 
     pub fn current_folder(&self) -> String {
         if let Some(s) = self.cwd.as_os_str().to_str() {
-            let s = s.split('/').collect::<Vec<&str>>();
-            String::from(s[s.len() - 1])
+            self.strip_path_string(s, true)
         } else {
             String::from("???")
         }
@@ -80,8 +82,7 @@ impl App {
     pub fn parent_folder(&self) -> String {
         if let Some(p) = self.cwd.parent() {
             if let Some(s) = p.to_path_buf().as_os_str().to_str() {
-                let s = s.split('/').collect::<Vec<&str>>();
-                String::from(s[s.len() - 1])
+                self.strip_path_string(s, true)
             } else {
                 String::from("???")
             }
@@ -92,7 +93,7 @@ impl App {
 
     pub fn current_folder_parent_idx(&self) -> Option<usize> {
         let parent = self.list_parent();
-        let curr = self.current_folder() + &String::from("/");
+        let curr = self.current_folder();
         for (i, item) in parent.iter().enumerate() {
             if item == &curr {
                 return Some(i);
