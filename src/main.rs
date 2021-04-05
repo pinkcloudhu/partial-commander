@@ -6,7 +6,10 @@ use std::{
     error::Error,
 };
 use argh::FromArgs;
-use tui::{Terminal, backend::CrosstermBackend};
+use tui::{
+    Terminal, 
+    backend::CrosstermBackend
+};
 use crossterm::{
     execute, 
     terminal::{
@@ -19,6 +22,7 @@ use crossterm::{
 use crossterm::event::DisableMouseCapture;
 
 mod app;
+mod ui;
 
 // Events sent by the input handling thread
 enum Event<I> {
@@ -38,8 +42,11 @@ Navigation keys:
 #[derive(Debug, FromArgs)]
 struct Cli {
     /// time in ms between ticks
-    #[argh(option, default = "250")]
+    #[argh(option, default = "250", short = 't')]
     tick_rate: u64,
+    /// path to start in
+    #[argh(positional)]
+    path: Option<String>,
 }
 
 fn main() -> Result<(), Box<dyn Error>> {
@@ -77,13 +84,23 @@ fn main() -> Result<(), Box<dyn Error>> {
 
     terminal.clear()?;
 
+    let mut app = app::App::new(cli.path);
+    let mut current_directory = ui::Folder::new(app.list_folder());
+    current_directory.set_items(app.list_folder());
+    let mut parent_directory = ui::Folder::new(app.list_parent());
+    parent_directory.set_items(app.list_parent());
     loop {
-        
-        terminal.draw(app::draw)?;
+        terminal.draw(|f| ui::draw(f, &mut app, &mut current_directory.state, &mut parent_directory.state))?;
         match rx.recv()? {
             Event::Input(event) => match event.code {
                 KeyCode::Char('q') | KeyCode::Esc => { break }
-                _ => {} // TODO: pass to app to process
+                KeyCode::Down => { current_directory.next() }
+                KeyCode::Up => { current_directory.previous() }
+                KeyCode::Left | KeyCode::Backspace => { 
+                    app.up();
+                    current_directory.set_items(app.list_folder());
+                }
+                _ => {}
             },
             Event::Tick => {
                 // TODO: pass to app, possibly redraw also
