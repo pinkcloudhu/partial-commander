@@ -102,11 +102,12 @@ fn main() -> Result<(), Box<dyn Error>> {
                 KeyCode::Down => { current_directory.next() }
                 KeyCode::Up => { current_directory.previous() }
                 KeyCode::Left | KeyCode::Backspace => { 
-                    app.up(current_directory.state.selected());
-                    current_directory.set_items(app.list_folder());
-                    current_directory.select(parent_directory.state.selected());
-                    parent_directory.set_items(app.list_parent());
-                    parent_directory.select(app.current_folder_parent_idx());
+                    if let Ok(()) = app.up(current_directory.state.selected()) {
+                        current_directory.set_items(app.list_folder());
+                        current_directory.select(parent_directory.state.selected());
+                        parent_directory.set_items(app.list_parent());
+                        parent_directory.select(app.current_folder_parent_idx());
+                    };
                 }
                 KeyCode::Right | KeyCode::Enter => {
                     if let Some(idx) = current_directory.state.selected() {

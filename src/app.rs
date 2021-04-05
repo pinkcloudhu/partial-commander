@@ -101,7 +101,7 @@ impl App {
         None
     }
 
-    pub fn up(&mut self, selected_idx: Option<usize>) {
+    pub fn up(&mut self, selected_idx: Option<usize>) -> Result<(), ()> {
         if let Some(parent) = self.cwd.parent() {
             if let Some(idx) = selected_idx {
                 if let Ok(mut items) = self.cwd.read_dir() {
@@ -111,7 +111,8 @@ impl App {
                 }
             }
             self.cwd = parent.to_path_buf();
-        }
+        } else { return Err(()) }
+        return Ok(())
     }
 
     pub fn child_is_folder(&self, idx: usize) -> bool {
