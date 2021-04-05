@@ -28,6 +28,7 @@ mod cwd;
 // Events sent by the input handling thread
 enum Event<I> {
     Input(I),
+    Tick, // Needed to keep alive window resizing
 }
 
 /**
@@ -86,6 +87,7 @@ fn main() -> Result<(), Box<dyn Error>> {
                 }
             }
             if last_tick.elapsed() >= tick_rate {
+                tx.send(Event::Tick).unwrap();
                 last_tick = Instant::now();
             }
         }
@@ -134,6 +136,7 @@ fn main() -> Result<(), Box<dyn Error>> {
                 }
                 _ => {}
             }
+            _ => {}
         }
     }
     cleanup(&mut terminal)?;

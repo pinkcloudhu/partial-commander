@@ -1,10 +1,10 @@
 use tui::{
     backend::Backend,
     Frame,
-    widgets::{Block, Borders, List, ListItem, ListState},
-    layout::{Layout, Constraint, Direction, Margin},
-    text::{Span},
-    style::{Color, Style},
+    widgets::{Block, Borders, List, ListItem, ListState, Paragraph, Wrap},
+    layout::{Layout, Constraint, Direction, Margin, Alignment},
+    text::{Span, Spans},
+    style::{Color, Style, Modifier},
 };
 use crate::app::App;
 
@@ -72,10 +72,45 @@ pub fn draw<B: Backend>(f: &mut Frame<B>, app: &mut App, current_directory_state
     if let Some(idx) = current_directory_state.selected() {
         if app.child_is_folder(idx) {
             if let Ok(folder_contents) = app.list_child(idx) {
-                let items: Vec<ListItem> = folder_contents.iter().map(|f| ListItem::new(f.as_str())).collect();
-                let list = List::new(items)
-                .style(Style::default().fg(Color::Gray));
-                f.render_widget(list, contents_block);
+                if folder_contents.len() == 0 {
+                    let mut explanation = "";
+                    if app.is_dirs_only() {
+                        explanation = "Note that there may be files, but are hidden because of directory mode";
+                    }
+                    let s = vec![
+                        Spans::from(vec![
+                            Span::styled("Empty directory", Style::default().add_modifier(Modifier::ITALIC)),
+                        ]),
+                        Spans::from(vec![
+                            Span::styled(explanation, Style::default().fg(Color::DarkGray)),
+                        ]),
+                    ];
+                    let paragraph = Paragraph::new(s)
+                        .alignment(Alignment::Center)
+                        .wrap(Wrap { trim: true });
+                    f.render_widget(paragraph, contents_block);
+                } else {
+                    let items: Vec<ListItem> = folder_contents.iter().map(|f| ListItem::new(f.as_str())).collect();
+                    let list = List::new(items)
+                    .style(Style::default().fg(Color::Gray));
+                    f.render_widget(list, contents_block);
+                }
+            }
+        } else { // is a file
+            if let Some(content) = app.read_child_file(idx) {
+                let s: Vec<Spans> = content.iter().map(|s| Spans::from(s.as_str())).collect();
+                let paragraph = Paragraph::new(s)
+                    .wrap(Wrap { trim: false });
+                    f.render_widget(paragraph, contents_block);
+            } else {
+                let s = vec![
+                    Spans::from(Span::styled("Can't display file content", Style::default().add_modifier(Modifier::ITALIC))),
+                    Spans::from(Span::styled("Only text files are supported for preview, or missing filesystem permission", Style::default().fg(Color::DarkGray))),
+                ];
+                let paragraph = Paragraph::new(s)
+                    .alignment(Alignment::Center)
+                    .wrap(Wrap {trim: true});
+                f.render_widget(paragraph, contents_block);
             }
         }
     }

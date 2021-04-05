@@ -220,4 +220,45 @@ impl App {
     pub fn current_path(&self) -> &Path {
         return self.cwd.as_path();
     }
+
+    pub fn is_dirs_only(&self) -> bool {
+        self.dirs_only
+    }
+
+    pub fn read_child_file(&self, idx: usize) -> Option<Vec<String>> {
+        use std::fs::File;
+        use std::io::{self, Read, BufRead, Seek, SeekFrom};
+        use content_inspector::{inspect, ContentType};
+        use itertools::Itertools;
+
+        if self.child_is_folder(idx) { return None }
+
+        // First, this hunk of mess determines if a file is text, so it can be displayed on-screen
+        // based on the first 512 bytes of it.
+        // Then, it seeks to the start of the file and reads 20 lines and sends it off for displaying
+
+        if let Ok(mut curr) = self.cwd.as_path().read_dir() {
+            if let Some(Ok(child)) = curr.nth(idx) {
+                let child_path = child.path();
+                if let Ok(mut handle) = File::open(child_path) {
+                    let buf: &mut [u8] = &mut [0; 512];
+                    if let Ok(n) = handle.read(buf) {
+                        handle.seek(SeekFrom::Start(0)).expect("Should be able to seek to the start of a stream");
+                        if inspect(buf) != ContentType::BINARY {
+                            let mut s = vec!();
+                            for lines in &io::BufReader::new(handle).lines().chunks(20) {
+                                for (_, line) in lines.enumerate() {
+                                    if let Ok(line) = line {
+                                        s.push(line);
+                                    }
+                                }
+                            }
+                            return Some(s);
+                        }
+                    }
+                }
+            }
+        }
+        None
+    }
 }
