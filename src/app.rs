@@ -1,4 +1,3 @@
-use std::fs::DirEntry;
 use std::io::ErrorKind;
 use std::{
     env::current_dir,
@@ -81,6 +80,15 @@ impl App {
         return result;
     }
 
+    fn get_folder_nth(&self, path: &Path, idx: usize) -> Result<PathBuf, ErrorKind> {
+        if let Ok(item) = self.list_folder_inner(path) {
+            if item.len() != 0 {
+                return Ok(item[idx].clone())
+            }
+        }
+        return Err(ErrorKind::NotFound)
+    }
+
     pub fn list_folder_str(&self) -> Vec<String> {
         self.list_folder_inner_str(self.cwd.as_path())
     }
@@ -105,29 +113,14 @@ impl App {
 
     pub fn list_child_str(&self, idx: usize) -> Result<Vec<String>, ErrorKind> {
         if self.child_is_folder(idx) {
-            if let Ok(curr) = self.cwd.as_path().read_dir() {
-                let mut current: Vec<DirEntry> = vec![];
-                for dir in curr {
-                    if let Ok(item) = dir {
-                        if self.dirs_only {
-                            if let Ok(m) = item.path().metadata() {
-                                 if m.is_dir() {
-                                    current.push(item);
-                                }
-                            }
-                        } else {
-                            current.push(item);
-                        }
-                    }
-                }
-                if current.len() == 0 {
+            if let Ok(curr) = self.list_folder_inner(self.cwd.as_path()) {
+                if curr.len() == 0 {
                     return Err(ErrorKind::NotFound);
-                } else {
-                    return Ok(self.list_folder_inner_str((&current[idx]).path().as_path()));
                 }
+                return Ok(self.list_folder_inner_str(&curr[idx]));
             }
         }
-        return Err(ErrorKind::NotFound);
+        return Err(ErrorKind::InvalidInput);
     }
 
     pub fn current_folder_parent_idx(&self) -> Option<usize> {
@@ -144,11 +137,9 @@ impl App {
     pub fn child_is_folder(&self, idx: usize) -> bool {
         if self.dirs_only { return true; }
 
-        if let Ok(mut curr) = self.cwd.as_path().read_dir() {
-            if let Some(Ok(item)) = curr.nth(idx) {
-                if let Ok(m) = item.metadata() {
-                    return m.is_dir();
-                }
+        if let Ok(item) = self.get_folder_nth(self.cwd.as_path(), idx) {
+            if let Ok(m) = item.metadata() {
+                return m.is_dir();
             }
         }
         return false;
@@ -157,10 +148,8 @@ impl App {
     pub fn up(&mut self, selected_idx: Option<usize>) -> Result<(), ()> {
         if let Some(parent) = self.cwd.parent() {
             if let Some(idx) = selected_idx {
-                if let Ok(mut items) = self.cwd.read_dir() {
-                    if let Some(Ok(item)) = items.nth(idx) {
-                        self.history.push(item.path());
-                    }
+                if let Ok(item) = self.get_folder_nth(self.cwd.as_path(), idx) {
+                    self.history.push(item);
                 }
             }
             self.cwd = parent.to_path_buf();
@@ -175,28 +164,11 @@ impl App {
         if parent.len() == 0 {
             return Err(ErrorKind::NotFound);
         }
-        if let Ok(read_dir) = self.cwd.as_path().read_dir() {
-            let mut children: Vec<DirEntry> = vec![];
-            for dir in read_dir {
-                if let Ok(item) = dir {
-                    if self.dirs_only {
-                        if let Ok(m) = item.path().metadata() {
-                            if m.is_dir() {
-                                children.push(item);
-                            }
-                        }
-                    } else {
-                        children.push(item);
-                    }
-                }
-            }
-            if let Ok(m) = (&children[idx]).metadata() {
-                if !m.is_dir() {
-                    return Err(ErrorKind::InvalidInput)
-                }
-            }
-
-            self.cwd = (&children[idx]).path();
+        if !self.child_is_folder(idx) {
+            return Err(ErrorKind::InvalidInput);
+        }
+        if let Ok(child) = self.get_folder_nth(self.cwd.as_path(), idx) {
+            self.cwd = child;
         }
         return Ok(parent);
     }
@@ -226,8 +198,6 @@ impl App {
         use std::io::{self, Read, BufRead, Seek, SeekFrom};
         use content_inspector::{inspect, ContentType};
         use itertools::Itertools;
-
-        if self.child_is_folder(idx) { return None }
 
         // First, this hunk of mess determines if a file is text, so it can be displayed on-screen
         // based on the first 512 bytes of it.

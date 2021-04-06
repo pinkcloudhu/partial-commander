@@ -6,7 +6,34 @@ use tui::{
     text::{Span, Spans},
     style::{Color, Style, Modifier},
 };
+use std::io::ErrorKind;
 use crate::app::App;
+
+#[derive(Clone)]
+pub struct UiData {
+    parent_title: String,
+    current_title: String,
+    parent_list: Vec<String>,
+    current_list: Vec<String>,
+    current_last_selected: usize,
+    child_list: Result<Vec<String>, ErrorKind>,
+    child_content: Option<Vec<String>>,
+    child_is_folder: bool,
+}
+impl UiData {
+    pub fn new() -> Self {
+        UiData {
+            parent_title: String::from(""),
+            current_title: String::from(""),
+            parent_list: vec!(),
+            current_list: vec!(),
+            current_last_selected: 0,
+            child_list: Ok(vec!()),
+            child_content: None,
+            child_is_folder: true,
+        }
+    }
+}
 
 fn draw_empty_dir<B: Backend>(f: &mut Frame<B>, app: &mut App, rect: Rect, ) {
     let mut explanation = "";
@@ -27,7 +54,25 @@ fn draw_empty_dir<B: Backend>(f: &mut Frame<B>, app: &mut App, rect: Rect, ) {
     f.render_widget(paragraph, rect);
 }
 
-pub fn draw<B: Backend>(f: &mut Frame<B>, app: &mut App, current_directory_state: &mut ListState, parent_directory_state: &mut ListState) {
+pub fn draw<B: Backend>(f: &mut Frame<B>, app: &mut App, redraw_only: bool, ui_data: &mut UiData, current_directory_state: &mut ListState, parent_directory_state: &mut ListState) {
+    if !redraw_only {
+        ui_data.parent_title = app.parent_folder();
+        ui_data.parent_list = app.list_parent_str();
+        ui_data.current_title = app.current_folder();
+        ui_data.current_list = app.list_folder_str();
+    }
+    if let Some(idx) = current_directory_state.selected() {
+        if (ui_data.current_last_selected != idx) | !redraw_only {
+            ui_data.current_last_selected = idx;
+            ui_data.child_is_folder = app.child_is_folder(idx);
+            if ui_data.child_is_folder {
+                ui_data.child_list =  app.list_child_str(idx);
+            } else {
+                ui_data.child_content = app.read_child_file(idx);
+            }
+        }
+    }
+
     let chunks = Layout::default()
     .direction(Direction::Horizontal)
     .constraints([
@@ -53,12 +98,12 @@ pub fn draw<B: Backend>(f: &mut Frame<B>, app: &mut App, current_directory_state
     // Parent dir
     let block = Block::default()
         .title(
-            Span::styled(app.parent_folder(), Style::default().fg(Color::Green))
+            Span::styled(ui_data.parent_title.clone(), Style::default().fg(Color::Green))
         )
         .borders(Borders::ALL);
     f.render_widget(block, chunks[0]);
 
-    let folder_contents = app.list_parent_str();
+    let folder_contents = ui_data.parent_list.clone();
     let items: Vec<ListItem> = folder_contents.iter().map(|f| ListItem::new(f.as_str())).collect();
     let list = List::new(items)
         .style(Style::default().fg(Color::Gray))
@@ -70,14 +115,15 @@ pub fn draw<B: Backend>(f: &mut Frame<B>, app: &mut App, current_directory_state
     // current dir
     let block = Block::default()
         .title(
-            Span::styled(app.current_folder(), Style::default().fg(Color::Green))
+            Span::styled(ui_data.current_title.clone(), Style::default().fg(Color::Green))
         )
         .borders(Borders::ALL);
     f.render_widget(block, chunks[1]);
 
-    let folder_contents = app.list_folder_str();
+    let folder_contents = ui_data.current_list.clone();
     if folder_contents.len() == 0 {
         draw_empty_dir(f, app, current_block);
+        return;
     } else {
         let items: Vec<ListItem> = folder_contents.iter().map(|f| ListItem::new(f.as_str())).collect();
         let list = List::new(items)
@@ -92,9 +138,9 @@ pub fn draw<B: Backend>(f: &mut Frame<B>, app: &mut App, current_directory_state
         .borders(Borders::ALL);
     f.render_widget(block, chunks[2]);
 
-    if let Some(idx) = current_directory_state.selected() {
-        if app.child_is_folder(idx) {
-            if let Ok(folder_contents) = app.list_child_str(idx) {
+    if let Some(_) = current_directory_state.selected() {
+        if ui_data.child_is_folder {
+            if let Ok(folder_contents) = ui_data.child_list.clone() {
                 if folder_contents.len() == 0 {
                     draw_empty_dir(f, app, contents_block);
                 } else {
@@ -105,7 +151,7 @@ pub fn draw<B: Backend>(f: &mut Frame<B>, app: &mut App, current_directory_state
                 }
             }
         } else { // is a file
-            if let Some(content) = app.read_child_file(idx) {
+            if let Some(content) = ui_data.child_content.clone() {
                 let s: Vec<Spans> = content.iter().map(|s| Spans::from(s.as_str())).collect();
                 let paragraph = Paragraph::new(s)
                     .wrap(Wrap { trim: false });

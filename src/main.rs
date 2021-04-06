@@ -110,8 +110,13 @@ fn main() -> Result<(), Box<dyn Error>> {
     parent_directory.set_items(app.list_parent_str());
     parent_directory.select(app.current_folder_parent_idx());
 
+    let mut ui_data = crate::ui::UiData::new();
+
+    terminal.draw(|f| ui::draw(f, &mut app, false, &mut ui_data, &mut current_directory.state, &mut parent_directory.state))?;
+    let mut redraw_only = true;
     loop {
-        terminal.draw(|f| ui::draw(f, &mut app, &mut current_directory.state, &mut parent_directory.state))?;
+        terminal.draw(|f| ui::draw(f, &mut app, redraw_only, &mut ui_data, &mut current_directory.state, &mut parent_directory.state))?;
+        redraw_only = true;
         match rx.recv()? {
             Event::Input(event) => match event.code {
                 KeyCode::Char('q') | KeyCode::Esc => { break }
@@ -124,6 +129,7 @@ fn main() -> Result<(), Box<dyn Error>> {
                         parent_directory.set_items(app.list_parent_str());
                         parent_directory.select(app.current_folder_parent_idx());
                     };
+                    redraw_only = false;
                 }
                 KeyCode::Right | KeyCode::Enter => {
                     if let Some(idx) = current_directory.state.selected() {
@@ -136,6 +142,7 @@ fn main() -> Result<(), Box<dyn Error>> {
                             } else {
                                 current_directory.select(Some(0));
                             }
+                            redraw_only = false;
                         }
                     }
                 }
