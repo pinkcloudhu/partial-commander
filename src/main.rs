@@ -1,6 +1,5 @@
 use std::{
     sync::mpsc,
-    io::stderr,
     time::{Duration, Instant},
     thread,
     error::Error,
@@ -18,8 +17,14 @@ use crossterm::{
     event::{self, Event as CEvent, KeyCode},
 };
 
-#[cfg(not(target_family = "windows"))]
+#[cfg(windows)]
+use std::io::{stdout, Stdout};
+
+#[cfg(not(windows))]
 use crossterm::event::DisableMouseCapture;
+
+#[cfg(not(windows))]
+use std::io::{stderr, Stderr};
 
 mod app;
 mod ui;
@@ -62,10 +67,10 @@ fn main() -> Result<(), Box<dyn Error>> {
 
     // Setup terminal gui stuff
     enable_raw_mode()?;
-    let mut stderr = stderr();
-    execute!(stderr, EnterAlternateScreen)?;
+    let mut out = out();
+    execute!(out, EnterAlternateScreen)?;
 
-    let backend = CrosstermBackend::new(stderr);
+    let backend = CrosstermBackend::new(out);
     let mut terminal = Terminal::new(backend)?;
 
     // Setup input handling thread
@@ -148,7 +153,7 @@ fn main() -> Result<(), Box<dyn Error>> {
     Ok(())
 }
 
-#[cfg(target_family = "unix")]
+#[cfg(not(windows))]
 fn cleanup<B: Backend + std::io::Write>(terminal: &mut Terminal<B>) -> Result<(), Box<dyn Error>> {
     disable_raw_mode()?;
     execute!(terminal.backend_mut(), LeaveAlternateScreen, DisableMouseCapture)?;
@@ -156,9 +161,15 @@ fn cleanup<B: Backend + std::io::Write>(terminal: &mut Terminal<B>) -> Result<()
     Ok(())
 }
 
-#[cfg(target_family = "windows")]
+#[cfg(windows)]
 fn cleanup<B: Backend + std::io::Write>(terminal: &mut Terminal<B>) -> Result<(), Box<dyn Error>> {
     disable_raw_mode()?;
     execute!(terminal.backend_mut(), LeaveAlternateScreen)?;
     Ok(())
 }
+
+#[cfg(windows)]
+fn out() -> Stdout { stdout() }
+
+#[cfg(not(windows))]
+fn out() -> Stderr { stderr() }
