@@ -97,12 +97,12 @@ fn main() -> Result<(), Box<dyn Error>> {
     terminal.clear()?;
 
     let mut app = app::App::new(cli.path, cli.dirs);
-    let mut current_directory = ui::Folder::new(app.list_folder());
-    current_directory.set_items(app.list_folder());
+    let mut current_directory = ui::Folder::new(app.list_folder_str());
+    current_directory.set_items(app.list_folder_str());
     current_directory.select(Some(0));
 
-    let mut parent_directory = ui::Folder::new(app.list_parent());
-    parent_directory.set_items(app.list_parent());
+    let mut parent_directory = ui::Folder::new(app.list_parent_str());
+    parent_directory.set_items(app.list_parent_str());
     parent_directory.select(app.current_folder_parent_idx());
 
     loop {
@@ -114,9 +114,9 @@ fn main() -> Result<(), Box<dyn Error>> {
                 KeyCode::Up => { current_directory.previous() }
                 KeyCode::Left | KeyCode::Backspace => { 
                     if let Ok(()) = app.up(current_directory.state.selected()) {
-                        current_directory.set_items(app.list_folder());
+                        current_directory.set_items(app.list_folder_str());
                         current_directory.select(parent_directory.state.selected());
-                        parent_directory.set_items(app.list_parent());
+                        parent_directory.set_items(app.list_parent_str());
                         parent_directory.select(app.current_folder_parent_idx());
                     };
                 }
@@ -125,7 +125,7 @@ fn main() -> Result<(), Box<dyn Error>> {
                         if let Ok(items) = app.down(idx) {
                             parent_directory.set_items(items);
                             parent_directory.select(Some(idx));
-                            current_directory.set_items(app.list_folder());
+                            current_directory.set_items(app.list_folder_str());
                             if let Some(idx) = app.pop_last_visited_idx() {
                                 current_directory.select(Some(idx));
                             } else {

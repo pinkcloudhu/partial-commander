@@ -2,11 +2,30 @@ use tui::{
     backend::Backend,
     Frame,
     widgets::{Block, Borders, List, ListItem, ListState, Paragraph, Wrap},
-    layout::{Layout, Constraint, Direction, Margin, Alignment},
+    layout::{Layout, Constraint, Direction, Margin, Alignment, Rect},
     text::{Span, Spans},
     style::{Color, Style, Modifier},
 };
 use crate::app::App;
+
+fn draw_empty_dir<B: Backend>(f: &mut Frame<B>, app: &mut App, rect: Rect, ) {
+    let mut explanation = "";
+    if app.is_dirs_only() {
+        explanation = "Note that there may be files, but are hidden because of directory mode";
+    }
+    let s = vec![
+        Spans::from(vec![
+            Span::styled("Empty directory", Style::default().add_modifier(Modifier::ITALIC)),
+        ]),
+        Spans::from(vec![
+            Span::styled(explanation, Style::default().fg(Color::DarkGray)),
+        ]),
+    ];
+    let paragraph = Paragraph::new(s)
+        .alignment(Alignment::Center)
+        .wrap(Wrap { trim: true });
+    f.render_widget(paragraph, rect);
+}
 
 pub fn draw<B: Backend>(f: &mut Frame<B>, app: &mut App, current_directory_state: &mut ListState, parent_directory_state: &mut ListState) {
     let chunks = Layout::default()
@@ -39,7 +58,7 @@ pub fn draw<B: Backend>(f: &mut Frame<B>, app: &mut App, current_directory_state
         .borders(Borders::ALL);
     f.render_widget(block, chunks[0]);
 
-    let folder_contents = app.list_parent();
+    let folder_contents = app.list_parent_str();
     let items: Vec<ListItem> = folder_contents.iter().map(|f| ListItem::new(f.as_str())).collect();
     let list = List::new(items)
         .style(Style::default().fg(Color::Gray))
@@ -56,13 +75,17 @@ pub fn draw<B: Backend>(f: &mut Frame<B>, app: &mut App, current_directory_state
         .borders(Borders::ALL);
     f.render_widget(block, chunks[1]);
 
-    let folder_contents = app.list_folder();
-    let items: Vec<ListItem> = folder_contents.iter().map(|f| ListItem::new(f.as_str())).collect();
-    let list = List::new(items)
+    let folder_contents = app.list_folder_str();
+    if folder_contents.len() == 0 {
+        draw_empty_dir(f, app, current_block);
+    } else {
+        let items: Vec<ListItem> = folder_contents.iter().map(|f| ListItem::new(f.as_str())).collect();
+        let list = List::new(items)
         .style(Style::default().fg(Color::Gray))
         .highlight_style(Style::default().fg(Color::White).bg(Color::Blue))
         .highlight_symbol("> ");
-    f.render_stateful_widget(list, current_block, current_directory_state);
+        f.render_stateful_widget(list, current_block, current_directory_state);
+    }
 
     // child item/dir
     let block = Block::default()
@@ -71,24 +94,9 @@ pub fn draw<B: Backend>(f: &mut Frame<B>, app: &mut App, current_directory_state
 
     if let Some(idx) = current_directory_state.selected() {
         if app.child_is_folder(idx) {
-            if let Ok(folder_contents) = app.list_child(idx) {
+            if let Ok(folder_contents) = app.list_child_str(idx) {
                 if folder_contents.len() == 0 {
-                    let mut explanation = "";
-                    if app.is_dirs_only() {
-                        explanation = "Note that there may be files, but are hidden because of directory mode";
-                    }
-                    let s = vec![
-                        Spans::from(vec![
-                            Span::styled("Empty directory", Style::default().add_modifier(Modifier::ITALIC)),
-                        ]),
-                        Spans::from(vec![
-                            Span::styled(explanation, Style::default().fg(Color::DarkGray)),
-                        ]),
-                    ];
-                    let paragraph = Paragraph::new(s)
-                        .alignment(Alignment::Center)
-                        .wrap(Wrap { trim: true });
-                    f.render_widget(paragraph, contents_block);
+                    draw_empty_dir(f, app, contents_block);
                 } else {
                     let items: Vec<ListItem> = folder_contents.iter().map(|f| ListItem::new(f.as_str())).collect();
                     let list = List::new(items)
@@ -133,6 +141,7 @@ impl Folder {
     }
 
     pub fn next(&mut self) {
+        if self.items.len() == 0 { return }
         let i = match self.state.selected() {
             Some(i) => {
                 if i >= self.items.len() - 1 {
@@ -147,6 +156,7 @@ impl Folder {
     }
 
     pub fn previous(&mut self) {
+        if self.items.len() == 0 { return }
         let i = match self.state.selected() {
             Some(i) => {
                 if i == 0 {
