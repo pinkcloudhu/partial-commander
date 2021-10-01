@@ -1,22 +1,21 @@
+use std::error::Error;
 use tui::{
     backend::Backend,
     Frame,
     widgets::{Block, Borders, List, ListItem, ListState, Paragraph, Wrap},
-    layout::{Layout, Constraint, Direction, Margin, Alignment, Rect},
+    layout::{Layout, Constraint, Direction, Margin, Alignment, Rect, Corner},
     text::{Span, Spans},
     style::{Color, Style, Modifier},
 };
-use std::io::ErrorKind;
 use crate::app::App;
 
-#[derive(Clone)]
 pub struct UiData {
     parent_title: String,
     current_title: String,
     parent_list: Vec<String>,
     current_list: Vec<String>,
     current_last_selected: usize,
-    child_list: Result<Vec<String>, ErrorKind>,
+    child_list: Result<Vec<String>, Box<dyn Error>>,
     child_content: Option<Vec<String>>,
     child_is_folder: bool,
 }
@@ -57,16 +56,16 @@ fn draw_empty_dir<B: Backend>(f: &mut Frame<B>, app: &mut App, rect: Rect, ) {
 pub fn draw<B: Backend>(f: &mut Frame<B>, app: &mut App, redraw_only: bool, ui_data: &mut UiData, current_directory_state: &mut ListState, parent_directory_state: &mut ListState) {
     if !redraw_only {
         ui_data.parent_title = app.parent_folder();
-        ui_data.parent_list = app.list_parent_str();
+        ui_data.parent_list = app.parent_name();
         ui_data.current_title = app.current_folder();
-        ui_data.current_list = app.list_folder_str();
+        ui_data.current_list = app.list_cwd_child_names();
     }
     if let Some(idx) = current_directory_state.selected() {
         if (ui_data.current_last_selected != idx) | !redraw_only {
             ui_data.current_last_selected = idx;
             ui_data.child_is_folder = app.child_is_folder(idx);
             if ui_data.child_is_folder {
-                ui_data.child_list =  app.list_child_str(idx);
+                ui_data.child_list =  app.list_cwd_nth_child_children_names(idx);
             } else {
                 ui_data.child_content = app.read_child_file(idx);
             }
@@ -108,6 +107,7 @@ pub fn draw<B: Backend>(f: &mut Frame<B>, app: &mut App, redraw_only: bool, ui_d
     let list = List::new(items)
         .style(Style::default().fg(Color::Gray))
         .highlight_style(Style::default().fg(Color::White).bg(Color::DarkGray))
+        .start_corner(Corner::TopRight)
         .highlight_symbol("> ");
     f.render_stateful_widget(list, parent_block, parent_directory_state);
 
@@ -140,7 +140,7 @@ pub fn draw<B: Backend>(f: &mut Frame<B>, app: &mut App, redraw_only: bool, ui_d
 
     if let Some(_) = current_directory_state.selected() {
         if ui_data.child_is_folder {
-            if let Ok(folder_contents) = ui_data.child_list.clone() {
+            if let Ok(folder_contents) = &ui_data.child_list {
                 if folder_contents.len() == 0 {
                     draw_empty_dir(f, app, contents_block);
                 } else {

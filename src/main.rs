@@ -54,7 +54,7 @@ struct Cli {
     /// time in ms between ticks for input handling
     #[argh(option, default = "250", short = 't')]
     tick_rate: u64,
-    /// upon exiting, pass last directory to shell
+    /// keep working directory upon exit
     #[argh(switch, short = 'k')]
     keep: bool,
     /// display directories only
@@ -79,11 +79,10 @@ fn main() -> Result<(), Box<dyn Error>> {
     let tick_rate = Duration::from_millis(cli.tick_rate);
     let input_thread_handle = thread::spawn(move || {
         let mut last_tick = Instant::now();
-        loop {
+        while let Err(_) = rx_stop_thread.recv_timeout(Duration::from_millis(1)) {
             let timeout = tick_rate
             .checked_sub(last_tick.elapsed())
             .unwrap_or_else(|| Duration::from_secs(0));
-            if let Ok(_) = rx_stop_thread.recv_timeout(Duration::from_millis(1)) { return; }
             if event::poll(timeout).unwrap() {
                 if let CEvent::Key(key) = event::read().unwrap() {
                     if let Err(_) = tx.send(Event::Input(key)) {
@@ -101,14 +100,14 @@ fn main() -> Result<(), Box<dyn Error>> {
 
     terminal.clear()?;
 
-    let mut app = app::App::new(cli.path, cli.dirs);
-    let mut current_directory = ui::Folder::new(app.list_folder_str());
-    current_directory.set_items(app.list_folder_str());
+    let mut app = app::App::new(cli.path, cli.dirs)?;
+    let mut current_directory = ui::Folder::new(app.list_cwd_child_names());
+    current_directory.set_items(app.list_cwd_child_names());
     current_directory.select(Some(0));
 
-    let mut parent_directory = ui::Folder::new(app.list_parent_str());
-    parent_directory.set_items(app.list_parent_str());
-    parent_directory.select(app.current_folder_parent_idx());
+    let mut parent_directory = ui::Folder::new(app.parent_name());
+    parent_directory.set_items(app.parent_name());
+    parent_directory.select(app.cwd_parent_idx());
 
     let mut ui_data = crate::ui::UiData::new();
 
@@ -124,10 +123,10 @@ fn main() -> Result<(), Box<dyn Error>> {
                 KeyCode::Up => { current_directory.previous() }
                 KeyCode::Left | KeyCode::Backspace => { 
                     if let Ok(()) = app.up(current_directory.state.selected()) {
-                        current_directory.set_items(app.list_folder_str());
+                        current_directory.set_items(app.list_cwd_child_names());
                         current_directory.select(parent_directory.state.selected());
-                        parent_directory.set_items(app.list_parent_str());
-                        parent_directory.select(app.current_folder_parent_idx());
+                        parent_directory.set_items(app.parent_name());
+                        parent_directory.select(app.cwd_parent_idx());
                     };
                     redraw_only = false;
                 }
@@ -136,7 +135,7 @@ fn main() -> Result<(), Box<dyn Error>> {
                         if let Ok(items) = app.down(idx) {
                             parent_directory.set_items(items);
                             parent_directory.select(Some(idx));
-                            current_directory.set_items(app.list_folder_str());
+                            current_directory.set_items(app.list_cwd_child_names());
                             if let Some(idx) = app.pop_last_visited_idx() {
                                 current_directory.select(Some(idx));
                             } else {
