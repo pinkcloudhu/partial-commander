@@ -101,13 +101,13 @@ fn main() -> Result<(), Box<dyn Error>> {
     terminal.clear()?;
 
     let mut app = app::App::new(cli.path, cli.dirs)?;
-    let mut current_directory = ui::Folder::new(app.list_cwd_child_names());
-    current_directory.set_items(app.list_cwd_child_names());
+    let mut current_directory = ui::Folder::new(app.list_cwd_child_names()?);
+    current_directory.set_items(app.list_cwd_child_names()?);
     current_directory.select(Some(0));
 
-    let mut parent_directory = ui::Folder::new(app.parent_name());
-    parent_directory.set_items(app.parent_name());
-    parent_directory.select(app.cwd_parent_idx());
+    let mut parent_directory = ui::Folder::new(app.parent_children_names()?);
+    parent_directory.set_items(app.parent_children_names()?);
+    parent_directory.select(app.cwd_parent_idx().ok());
 
     let mut ui_data = crate::ui::UiData::new();
 
@@ -122,20 +122,20 @@ fn main() -> Result<(), Box<dyn Error>> {
                 KeyCode::Down => { current_directory.next() }
                 KeyCode::Up => { current_directory.previous() }
                 KeyCode::Left | KeyCode::Backspace => { 
-                    if let Ok(()) = app.up(current_directory.state.selected()) {
-                        current_directory.set_items(app.list_cwd_child_names());
+                    if app.up(current_directory.state.selected()).is_ok() {
+                        current_directory.set_items(app.list_cwd_child_names()?);
                         current_directory.select(parent_directory.state.selected());
-                        parent_directory.set_items(app.parent_name());
-                        parent_directory.select(app.cwd_parent_idx());
+                        parent_directory.set_items(app.parent_children_names().unwrap_or(Vec::new()));
+                        parent_directory.select(app.cwd_parent_idx().ok());
+                        redraw_only = false;
                     };
-                    redraw_only = false;
                 }
                 KeyCode::Right | KeyCode::Enter => {
                     if let Some(idx) = current_directory.state.selected() {
                         if let Ok(items) = app.down(idx) {
                             parent_directory.set_items(items);
                             parent_directory.select(Some(idx));
-                            current_directory.set_items(app.list_cwd_child_names());
+                            current_directory.set_items(app.list_cwd_child_names()?);
                             if let Some(idx) = app.pop_last_visited_idx() {
                                 current_directory.select(Some(idx));
                             } else {

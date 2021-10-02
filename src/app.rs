@@ -11,9 +11,13 @@ pub const PATH_SEAPARATOR: &str = "/";
 #[cfg(target_family = "windows")]
 pub const PATH_SEAPARATOR: &str = "\\";
 
-#[derive(Debug)]
 struct AppError {
     msg: String
+}
+impl std::fmt::Debug for AppError {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{}", self.msg)
+    }
 }
 impl std::fmt::Display for AppError {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
@@ -33,16 +37,17 @@ pub struct App {
 }
 impl App {
     pub fn new(path: Option<String>, dirs_only: bool) -> Result<Self, Box<dyn Error>> {
-        let cwd;
-        if let Some(s) = path {
-            if Path::new(&s).exists() {
-                cwd = PathBuf::from(s)
-            } else {
-                cwd = current_dir().expect("could not determine current directory")
-            }
-        } else {
-            return Err(app_error("Invalid path supplied"));
-        };
+        let cwd = path
+            .and_then(|p| {
+                let pathbuf = PathBuf::from(p);
+                if pathbuf.exists() {
+                    Some(pathbuf)
+                } else { None }
+            })
+            .or_else(|| {
+                Some(current_dir().expect("could not determine current directory"))
+            })
+            .expect("Invalid path supplied");
         Ok(App {
             cwd: cwd,
             history: vec![],
@@ -54,22 +59,21 @@ impl App {
         self.dirs_only
     }
 
-    fn strip_path_string(&self, path: &Path) -> String {
-        if let Some(p) = path.to_str() {
-            let s = p.split(PATH_SEAPARATOR).collect::<Vec<&str>>();
-            let result = String::from(s[s.len() - 1]);
-            if let Ok(m) = path.metadata() {
-                if m.is_dir() {
-                    return String::from(result + PATH_SEAPARATOR)
-                } else {
-                    return result
-                }
-            }
+    fn strip_path_string(&self, path: &Path) -> Result<String, Box<dyn Error>> {
+        let p = &path
+            .to_str()
+            .ok_or(app_error("Couldn't convert path to string"))?
+            .split(PATH_SEAPARATOR)
+            .collect::<Vec<&str>>();
+        let s = p[p.len() - 1];
+
+        if path.metadata()?.is_dir() {
+            return Ok(s.to_string() + PATH_SEAPARATOR)
         }
-        return String::from("???");
+        Ok(s.to_string())
     }
 
-    fn list_path_children(&self, path: &Path) -> Result<Vec<PathBuf>, Box<dyn Error>> {
+    fn list_path_children(&self, path: &PathBuf) -> Result<Vec<PathBuf>, Box<dyn Error>> {
         if let Ok(m) = path.metadata() {
             if !m.is_dir() { return Err(app_error("Path is not a directory")) }
         }
@@ -89,103 +93,94 @@ impl App {
         return Ok(result);
     }
 
-    fn list_path_children_names(&self, path: &Path) -> Vec<String> {
-        let mut result = vec!();
-        if let Ok(paths) = self.list_path_children(path) {
-            result =  paths.iter().map(|p| self.strip_path_string(p)).collect();
-        }
-        return result;
+    fn list_path_children_names(&self, path: &PathBuf) -> Result<Vec<String>, Box<dyn Error>> {
+        Ok(
+            self.list_path_children(path)?
+            .iter().map(|p| 
+                self.strip_path_string(p)
+                    .ok()
+                    .unwrap_or("???".to_string())
+            ).collect()
+        )
     }
 
-    fn path_nth_child(&self, path: &Path, idx: usize) -> Result<PathBuf, Box<dyn Error>> {
-        if let Ok(item) = self.list_path_children(path) {
-            if item.len() != 0 {
-                return Ok(item[idx].clone())
-            }
-        }
-        return Err(app_error("Not found"))
+    fn path_nth_child(&self, path: &PathBuf, idx: usize) -> Result<PathBuf, Box<dyn Error>> {
+        Ok(self.list_path_children(path)?
+            .get(idx)
+            .ok_or(app_error("No such child"))?.clone())
     }
 
-    pub fn list_cwd_child_names(&self) -> Vec<String> {
-        self.list_path_children_names(self.cwd.as_path())
+    pub fn list_cwd_child_names(&self) -> Result<Vec<String>, Box<dyn Error>> {
+        self.list_path_children_names(&self.cwd)
     }
 
-    pub fn parent_name(&self) -> Vec<String> {
-        if let Some(parent) = self.cwd.parent() {
-            self.list_path_children_names(parent)
-        } else {
-            Vec::new()
-        }
+    pub fn parent_children_names(&self) -> Result<Vec<String>, Box<dyn Error>> {
+        self.list_path_children_names(
+            &self.cwd.parent().ok_or(app_error("No parent while trying to list parent's children"))?.to_path_buf()
+        )
     }
 
-    pub fn current_folder(&self) -> String {
+    pub fn current_folder_name(&self) -> Result<String, Box<dyn Error>> {
         self.strip_path_string(self.cwd.as_path())
     }
 
-    pub fn parent_folder(&self) -> String {
-        if let Some(parent) = self.cwd.parent() {
-            self.strip_path_string(parent)
-        } else { return String::from("???/"); }
+    pub fn parent_folder_name(&self) -> Result<String, Box<dyn Error>> {
+        self.strip_path_string(
+            self.cwd.parent().ok_or(app_error("No parent"))?
+        )
     }
 
     pub fn list_cwd_nth_child_children_names(&self, idx: usize) -> Result<Vec<String>, Box<dyn Error>> {
-        if self.child_is_folder(idx) {
-            if let Ok(curr) = self.list_path_children(self.cwd.as_path()) {
-                if curr.len() == 0 {
-                    return Err(app_error("Not found"));
-                }
-                return Ok(self.list_path_children_names(&curr[idx]));
-            }
+        if !self.child_is_folder(idx) {
+            return Err(app_error("Child is not a folder"));
         }
-        return Err(app_error("Invalid index"));
+        let children = self.list_path_children(&self.cwd)?;
+        let child = children.get(idx).ok_or(app_error("No such child"))?;
+        self.list_path_children_names(&child.to_path_buf())
     }
 
-    pub fn cwd_parent_idx(&self) -> Option<usize> {
-        let parent = self.parent_name();
-        let curr = self.current_folder();
+    pub fn cwd_parent_idx(&self) -> Result<usize, Box<dyn Error>> {
+        let parent = self.parent_children_names()?;
+        let curr = self.current_folder_name()?;
         for (i, item) in parent.iter().enumerate() {
             if item == &curr {
-                return Some(i);
+                return Ok(i);
             }
         }
-        None
+        Err(app_error("Not found"))
     }
 
     pub fn child_is_folder(&self, idx: usize) -> bool {
         if self.dirs_only { return true; }
 
-        if let Ok(item) = self.path_nth_child(self.cwd.as_path(), idx) {
-            if let Ok(m) = item.metadata() {
-                return m.is_dir();
-            }
-        }
-        return false;
+        self.path_nth_child(&self.cwd, idx)
+            .and_then(|p| {
+                Ok(p.metadata()?.is_dir())
+            })
+            .unwrap_or(false)
     }
 
     pub fn up(&mut self, selected_idx: Option<usize>) -> Result<(), Box<dyn Error>> {
-        if let Some(parent) = self.cwd.parent() {
-            if let Some(idx) = selected_idx {
-                if let Ok(item) = self.path_nth_child(self.cwd.as_path(), idx) {
-                    self.history.push(item);
-                }
-            }
-            self.cwd = parent.to_path_buf();
-        } else {
-            return Err(app_error("No parent"));
-        }
-        return Ok(());
+        self.path_nth_child(
+            &self.cwd,
+            selected_idx.unwrap_or_default()
+        ).and_then(|i| {
+                Ok(self.history.push((*i).to_path_buf()))
+        }).ok();
+        self.cwd = self.cwd.parent().ok_or(app_error("No parent"))?.to_path_buf();
+        Ok(())
     }
 
     pub fn down(&mut self, idx: usize) -> Result<Vec<String>, Box<dyn Error>> {
-        let parent = self.list_cwd_child_names();
+        let parent = self.list_cwd_child_names()?;
         if parent.len() == 0 {
             return Err(app_error("No children"));
         }
         if !self.child_is_folder(idx) {
             return Err(app_error("Child is not a folder"));
         }
-        if let Ok(child) = self.path_nth_child(self.cwd.as_path(), idx) {
-            self.cwd = child;
+        if let Ok(child) = self.path_nth_child(&self.cwd, idx) {
+            self.cwd = child.clone();
         }
         return Ok(parent);
     }

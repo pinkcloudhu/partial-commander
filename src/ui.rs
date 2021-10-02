@@ -55,10 +55,10 @@ fn draw_empty_dir<B: Backend>(f: &mut Frame<B>, app: &mut App, rect: Rect, ) {
 
 pub fn draw<B: Backend>(f: &mut Frame<B>, app: &mut App, redraw_only: bool, ui_data: &mut UiData, current_directory_state: &mut ListState, parent_directory_state: &mut ListState) {
     if !redraw_only {
-        ui_data.parent_title = app.parent_folder();
-        ui_data.parent_list = app.parent_name();
-        ui_data.current_title = app.current_folder();
-        ui_data.current_list = app.list_cwd_child_names();
+        ui_data.parent_title = app.parent_folder_name().unwrap_or("???".to_string());
+        ui_data.parent_list = app.parent_children_names().unwrap_or(Vec::new());
+        ui_data.current_title = app.current_folder_name().unwrap_or("???".to_string());
+        ui_data.current_list = app.list_cwd_child_names().unwrap_or(Vec::new());
     }
     if let Some(idx) = current_directory_state.selected() {
         if (ui_data.current_last_selected != idx) | !redraw_only {
