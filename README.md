@@ -13,7 +13,9 @@
 
 ## Usage
 ### Prebuilt portable binary
-On the [releases](https://github.com/pinkcloudhu/partial-commander/releases) page
+[Latest](https://github.com/pinkcloudhu/partial-commander/releases/download/latest/pc.exe) version
+
+See all the [releases](https://github.com/pinkcloudhu/partial-commander/releases)
 
 ### Building from source
 - [Set up](https://www.rust-lang.org/tools/install) your rust environment if you haven't already
