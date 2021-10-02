@@ -10,8 +10,8 @@ name = "pc"
 path = "src/main.rs"
 
 [dependencies]
-crossterm = "0.19"
-tui = { version = "0.14", default-features = false, features = ['crossterm']}
+crossterm = "0.21"
+tui = { version = "0.16", default-features = false, features = ['crossterm']}
 argh = "0.1"
 content_inspector = "0.2"
 itertools = "0.10"
