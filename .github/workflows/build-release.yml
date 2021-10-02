@@ -1,10 +1,16 @@
-name: Rust
+name: Build and release
 
 on:
   push:
     branches: [ master ]
+    paths:
+    - 'src/**'
+    - 'Cargo.*'
   pull_request:
     branches: [ master ]
+    paths:
+    - 'src/**'
+    - 'Cargo.*'
 
 env:
   CARGO_TERM_COLOR: always
